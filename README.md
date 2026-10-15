@@ -1,39 +1,34 @@
 # Employee Attendance & Analytics API
 
-FastAPI + MongoDB implementation for the HROne v2.0 assignment. The HTTP contract is in `openapi.yaml`; stored field types and conventions are in `DATA_MODEL.md`.
+FastAPI + MongoDB implementation for the HROne Engineering Assignment (Contract v2.0).
 
-## Setup (Windows PowerShell)
+## Run locally (Windows PowerShell)
 
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-Copy-Item .env.example .env
-# Ensure MongoDB 6.0+ is running, then edit .env if needed.
-python sample_seed.py
-uvicorn app.main:app --port 8000 --reload
+$env:MONGO_URI = "mongodb://localhost:27017"
+$env:MONGO_DB = "attendance_db"
+uvicorn app.main:app --port 8000
 ```
 
-Open `http://127.0.0.1:8000/docs` for Swagger UI. The app reads `MONGO_URI` and `MONGO_DB` from environment variables; environment values take precedence over `.env`.
+MongoDB 6.0+ is required. The application reads `MONGO_URI` and `MONGO_DB` from the environment; configure these for your local MongoDB before starting. Do not point seed scripts or synthetic-data scripts at a database containing valuable data.
 
-## Seed data warning
-
-`sample_seed.py` deletes and reloads both collections in the selected database. Use a disposable local database only. The sample contains nine records and is not sufficient to validate analytics correctness.
+Swagger UI: http://127.0.0.1:8000/docs
 
 ## Tests
 
+Run the available automated tests from the repository root:
+
 ```powershell
 pytest -q
-python generate_dataset.py --employees 2000 --records 100000 --reset
 ```
 
-The synthetic-data generator is for local testing only and does not reproduce the employer's hidden data. Do not run it against a database containing valuable data. It clears the selected database when `--reset` is passed.
+The sample dataset is intentionally small and does not cover all hidden cases. Verify the edge cases in the assignment: overnight shifts, exact late/overtime boundaries, weekend records, mid-month joiners, employees with no logs, ranking ties, empty date ranges, concurrency, and query plans on a large synthetic dataset.
 
-## Assignment checklist
+## Submission notes
 
-- Keep all API application code in `app/main.py`.
-- Run boundary, concurrency, analytics and explain tests against MongoDB 6.0+.
-- Check `/admin/explain/{endpoint}` output for index scans and no collection scans on the tested query plan.
-- Never commit `.env`, credentials, virtual environments or data dumps.
+All application code must be in `app/main.py`. Submit `app/main.py`, `requirements.txt`, `REVIEW.md`, `DECISIONS.md`, and this `README.md`. Do not commit `.env`, credentials, virtual environments, or database dumps.
 
-This repository is a working implementation attempt, not a guarantee of passing the employer's hidden tests. In particular, inspect the department-trend aggregation on the exact MongoDB version and test empty date ranges and all-no-log departments before submission.
+**Verification status:** The implementation and review notes should be checked against the exact contract before submission. Passing local tests is not a guarantee of passing hidden tests. In particular, the department summary/trend currently perform some analytics work in Python, and the explain endpoint uses simplified pipelines for analytics; these do not yet satisfy the assignment's full MongoDB-pipeline/explain requirements.

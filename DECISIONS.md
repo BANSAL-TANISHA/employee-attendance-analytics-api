@@ -1,11 +1,11 @@
 # Technical decisions
 
-1. **Indexes.** A unique index on `employees.emp_code` enforces employee identity. A unique compound index on `attendance_logs (emp_code, date)` enforces one record per employee/day and makes punch-in races safe. Department/join-date and employee/date indexes support filtering and lookups. Date/employee, status/date and date/late-minutes indexes support attendance lists and analytics. Index usefulness should be confirmed with the explain endpoint on the target MongoDB version; indexes add write cost, so I would not add speculative indexes without query evidence.
+1. **Indexes.** A unique `employees.emp_code` index enforces the HR identifier. A unique `(emp_code, date)` attendance index enforces one record per employee/day and protects concurrent punch-ins. Date/employee and employee/date indexes support date-range lists and employee-month queries; status/late indexes should be retained only when explain plans show they help. Some current date/employee indexes overlap, so I would remove redundant ones after measuring real plans.
 
-2. **Punch-in race.** Both requests may check the employee, but neither relies on a pre-insert attendance lookup for correctness. The unique `(emp_code, date)` index permits only one insert. MongoDB accepts one request; the other receives `DuplicateKeyError`, mapped to HTTP 409.
+2. **Punch-in race.** Both requests may pass an employee lookup, but correctness does not depend on a prior attendance lookup. The unique `(emp_code, date)` index allows one insert. MongoDB accepts one; the other raises `DuplicateKeyError`, which the API maps to HTTP 409.
 
-3. **Ties.** The leaderboard uses `$rank`, not array positions. It ranks by total late minutes, returns every employee whose rank is at most `limit`, and sorts tied rows by employee code. A tie at the cutoff can therefore return more than `limit` rows.
+3. **Ties.** The leaderboard uses MongoDB `$rank` on total late minutes. For totals 100, 80, 80, 60, ranks are 1, 2, 2, 4. The cutoff is applied after ranking, so ties at the limit are all returned; tied rows are ordered by employee code.
 
-4. **Headcount.** Department summary starts from employees who joined by the end of the month and uses `$lookup` with preserved employees, so an employee with no logs still contributes to headcount. Employees who joined later are excluded.
+4. **Headcount.** Employees are selected by `joined_on <= period_end`, grouped by department, and initialized in the summary even when they have no attendance logs. The current implementation achieves this with Python-side roll-up, but the assignment requires moving the cross-collection roll-up into a MongoDB aggregation pipeline.
 
-5. **100x data.** I would measure real query plans and latency, review index selectivity, add load tests, and consider a replica set/read scaling and precomputed monthly summaries if query patterns justify the operational complexity.
+5. **100x data.** I would benchmark the actual pipelines and indexes on representative data, remove redundant indexes, and consider precomputed summaries only if measurements justify them. The explain endpoint should explain the same pipeline as the live endpoint; simplified match-only explains are not sufficient.
